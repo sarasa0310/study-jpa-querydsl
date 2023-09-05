@@ -20,7 +20,7 @@ class QuerydslApplicationTests {
 	EntityManager em;
 
 	@Test
-	void contextLoads() {
+	void querydslSetupTest() {
 		TestEntity testEntity = new TestEntity();
 		em.persist(testEntity);
 

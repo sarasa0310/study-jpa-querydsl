@@ -6,6 +6,7 @@ import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,9 +25,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static study.querydsl.entity.QMember.member;
 import static study.querydsl.entity.QTeam.team;
 
+/**
+ * 1. 기본 Q-Type 활용
+ * 2. 검색 조건 쿼리
+ * 3. 다양한 결과 조회 방법 - fetchXX
+ * 4. 정렬 & 페이징 & 집합
+ * 5. 조인 - 기본 조인, on절, 패치 조인
+ * 6. 서브 쿼리
+ * 7. Case 문
+ * 8. 상수, 문자 더하기
+ */
+
 @Transactional
 @SpringBootTest
-public class QuerydslBasicTest {
+@DisplayName("Querydsl 기본 문법")
+public class BasicSyntaxTest {
 
     @Autowired
     EntityManager em;
@@ -55,26 +68,14 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    void startJPQL() {
-        // member1 찾기
-        Member member = em.createQuery(
-                        "select m from Member m where m.username = :username",
-                        Member.class)
-                .setParameter("username", "member1")
-                .getSingleResult();
-
-        assertThat(member.getUsername()).isEqualTo("member1");
-        assertThat(member.getTeam().getName()).isEqualTo("teamA");
-    }
-
-    @Test
+    @DisplayName("Querydsl을 사용하여 username이 member1인 회원 조회")
     void startQuerydsl() {
-        // member1 찾기
+        // Q클래스 인스턴스 사용 방법
 //        QMember m = new QMember("m");
 //        QMember m = QMember.member;
 
         Member foundMember = queryFactory
-                .select(member)
+                .select(member) // 다음과 같이 static import해서 사용하는것을 추천
                 .from(member)
                 .where(member.username.eq("member1"))
                 .fetchOne();
@@ -84,21 +85,14 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    void search() {
-        // username이 member1 이면서, age가 10살인 회원 찾기
-        Member foundMember = queryFactory
-                .selectFrom(member)
-                .where(member.username.eq("member1")
-                        .and(member.age.eq(10)))
-                .fetchOne();
+    @DisplayName("username이 member1이면서, age가 10살인 회원 조회")
+    void findByUsernameAndAgeTest() {
+//        Member foundMember = queryFactory
+//                .selectFrom(member)
+//                .where(member.username.eq("member1")
+//                        .and(member.age.eq(10)))
+//                .fetchOne();
 
-        assertThat(foundMember.getUsername()).isEqualTo("member1");
-        assertThat(foundMember.getAge()).isEqualTo(10);
-    }
-
-    @Test
-    void searchAndParam() {
-        // username이 member1 이면서, age가 10살인 회원 찾기
         Member foundMember = queryFactory
                 .selectFrom(member)
                 .where( // 여러 개의 인자가 있으면 AND
@@ -112,6 +106,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
+    @DisplayName("다양한 리턴 타입을 갖는 fetch 메서드 테스트")
     void resultPatch() {
         List<Member> fetch = queryFactory
                 .selectFrom(member)
@@ -125,7 +120,8 @@ public class QuerydslBasicTest {
                 .selectFrom(member)
                 .fetchFirst();
 
-        // fetchResults() & fetchCount()는 Deprecated 되었다.
+        // 주의! fetchResults() & fetchCount()는 Deprecated 되었다.
+
 //        QueryResults<Member> queryResults = queryFactory
 //                .selectFrom(member)
 //                .fetchResults();
@@ -147,11 +143,13 @@ public class QuerydslBasicTest {
     * 회원 정렬 순서
     * 1. 회원 나이 내림차순(desc)
     * 2. 회원 이름 오름차순(asc)
-    * 단, 2에서 회원 이름이 없으면 마지막에 출력(nulls last)
+    * 단, 2에서 회원 이름이 없으면(null이면) 마지막에 출력(nulls last)
      */
 
     @Test
+    @DisplayName("정렬 테스트")
     void sort() {
+        // beforeEach() 이후 초기 회원 데이터 추가
         em.persist(new Member(null, 100));
         em.persist(new Member("member5", 100));
         em.persist(new Member("member6", 100));
@@ -160,11 +158,9 @@ public class QuerydslBasicTest {
                 .selectFrom(member)
                 .where(member.age.eq(100))
                 .orderBy(
-                        member.age.desc(),
-                        member.username.asc().nullsLast())
+                        member.age.desc(), // 먼저, 회원 나이로 내림차순 정렬
+                        member.username.asc().nullsLast()) // 나이가 같다면 이름 오름차순 정렬
                 .fetch();
-
-//        System.out.println(result);
 
         assertThat(result.get(0).getUsername()).isEqualTo("member5");
         assertThat(result.get(1).getUsername()).isEqualTo("member6");
@@ -172,6 +168,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
+    @DisplayName("페이징 테스트 1")
     void paging() {
         List<Member> result = queryFactory
                 .selectFrom(member)
@@ -180,12 +177,11 @@ public class QuerydslBasicTest {
                 .limit(2)
                 .fetch();
 
-        System.out.println(result);
-
         assertThat(result).hasSize(2);
     }
 
     @Test // fetchResults()는 deprecated 되었다. 복잡한 쿼리에서는 성능 문제 발생 가능 -> count 쿼리 별도로 작성
+    @DisplayName("페이징 테스트 2 - count 쿼리 포함")
     void paging2() {
         QueryResults<Member> queryResults = queryFactory
                 .selectFrom(member)
@@ -201,6 +197,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
+    @DisplayName("집합 테스트")
     void aggregation() {
         List<Tuple> result = queryFactory
                 .select(
@@ -221,11 +218,8 @@ public class QuerydslBasicTest {
         assertThat(tuple.get(member.age.min())).isEqualTo(10);
     }
 
-    /*
-    * 팀의 이름과 각 팀의 평균 연령 구하기
-    * 팀의 이름으로 그룹핑
-     */
     @Test
+    @DisplayName("팀의 이름과 회원의 평균 나이를 구하고, 팀의 이름으로 그룹화하는 테스트")
     void groupBy() {
         // given & when
         List<Tuple> result = queryFactory
@@ -247,9 +241,9 @@ public class QuerydslBasicTest {
         assertThat(teamB.get(member.age.avg())).isEqualTo(35);
     }
 
-    // 팀 A에 소속된 모든 회원
     @Test
-    void join() {
+    @DisplayName("회원과 팀을 조인하고, 회원이 속한 팀의 이름이 teamA인 모든 회원 조회")
+    void joinMemberAndTeam() {
         List<Member> result = queryFactory
                 .selectFrom(member)
                 .join(member.team, team)
@@ -261,9 +255,10 @@ public class QuerydslBasicTest {
                 .containsExactly("member1", "member2");
     }
 
-    // 회원의 이름이 팀 이름과 같은 회원 조회
     @Test
+    @DisplayName("회원의 이름이 팀의 이름과 같은 모든 회원 조회 - 연관 관계가 없는 필드 조회")
     void thetaJoin() {
+        // 회원 이름이 팀의 이름과 같은 더미 회원 데이터 추가
         em.persist(new Member("teamA"));
         em.persist(new Member("teamB"));
         em.persist(new Member("teamC"));
@@ -274,8 +269,6 @@ public class QuerydslBasicTest {
                 .where(member.username.eq(team.name))
                 .fetch();
 
-        System.out.println(result);
-
         assertThat(result).hasSize(2);
         assertThat(result)
                 .extracting("username")
@@ -283,10 +276,10 @@ public class QuerydslBasicTest {
     }
 
     /**
-     * ex) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회
      * JPQL -> select m, t from Member m left join m.team t on t.name = 'teamA'
      */
     @Test
+    @DisplayName("회원과 팀을 left outer join하면서, 팀 이름이 teamA인 회원 조회")
     void joinOnFiltering() {
         List<Tuple> result = queryFactory
                 .select(member, team)
@@ -297,7 +290,7 @@ public class QuerydslBasicTest {
                 .fetch();
 
         for (Tuple tuple : result) {
-            System.out.println("tuple = " + tuple);
+            System.out.println("tuple = " + tuple); // left outer join이므로 teamA가 아닌 회원의 팀 null 처리
         }
     }
 
