@@ -95,8 +95,9 @@ public class MemberRepositoryCustomImpl implements MemberRepositoryCustom {
 
 
         // 직접 count 쿼리를 작성하여 성능 최적화 가능
-        JPAQuery<Member> countQuery = queryFactory
-                .selectFrom(member)
+        JPAQuery<Long> countQuery = queryFactory
+                .select(member.count())
+                .from(member)
                 .leftJoin(member.team, team)
                 .where(
                         usernameEq(cond.getUsername()),
@@ -107,7 +108,7 @@ public class MemberRepositoryCustomImpl implements MemberRepositoryCustom {
 
         // count 쿼리 최적화 -> 필요없을 때 count 쿼리 생략 가능
 //        return PageableExecutionUtils.getPage(content, pageable, () -> countQuery.fetchCount());
-        return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchCount); // 메서드 래퍼런스
+        return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne); // 메서드 래퍼런스
 
 //        return new PageImpl<>(content, pageable, total);
     }
